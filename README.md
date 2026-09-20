@@ -4,11 +4,15 @@
 
 ## 产品流程
 
-1. 从三段自制音乐中选择一段，播放时点击「留下这一秒」，也可以拖动两端选择 8—20 秒。
+1. 按想念、陪伴、感谢选择原创试听曲，或导入 MP3 / WAV / M4A / OGG（8 秒至 5 分钟，20 MB 以内，取决于浏览器解码支持）。自动推荐片段，允许试听和拖动两端选择 8—20 秒。
 2. 写下留言和称呼，选择日落、海风或夜色主题，实时查看卡片。
 3. 生成并保存明信片，复制独立链接，自行发给收信人。
 4. 对方按住打开（也支持点击或键盘），听音乐、看留言，留下回应。
 5. 寄信人在制作页刷新回应，或打开同一张卡片查看。
+
+导入的整首音乐只在当前页面内解码；生成明信片时，将选中的片段转换为带淡入淡出的单声道 22.05 kHz PCM16 WAV，保存到 R2。服务端检查真实 WAV 结构与时长，D1 保存歌名、歌手、原曲起点和内容摘要。原曲时间在卡片中保留；收件人只加载短片段，不依赖寄信人的设备。上传失败可重试；相同请求 ID 不能替换为另一段音频。
+
+推荐依据短窗口的平均音频能量，仅用于提供试听起点，不宣称识别副歌、歌词或情绪。
 
 应用不会自行发送任何消息。音乐明信片和回应保存在 Cloudflare D1 中；浏览器只保存临时草稿及最近一张卡片的地址。没有公开列表，知道卡片地址且有站点访问权限的人可以读取卡片和回应。
 
@@ -21,6 +25,7 @@
 ```sh
 npm run build
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_quick_iron_fist.sql
+node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0001_neat_speed_demon.sql
 npm run dev -- --port 5174
 ```
 
@@ -38,12 +43,14 @@ node node_modules/typescript/bin/tsc --noEmit
 - `app/visuals.tsx`：明信片视觉和按住开启交互。
 - `app/receiver.tsx`：独立收信页面和回应表单。
 - `app/api/cards/`：卡片与回应的服务端接口。
-- `lib/sound.ts`：三段原创合成音乐、真实波形和播放资源管理。
+- `lib/sound.ts`：原创合成音乐、文件解码、推荐片段、真实波形、短片段导出和播放资源管理。
+- `app/api/audio/`、`db/audio.ts`：R2 音频保存和读取、D1 元数据。
+- `lib/audio-file.ts`：服务端标准 WAV 格式和大小校验。
 - `lib/moment.ts`：片段配置、共享类型和校验。
 - `db/schema.ts`、`drizzle/`：持久化结构与迁移。
 - `ASSETS.md`：音频与图像来源、生成提示词。
 
-尚未接入商业音乐平台或本地音乐上传。当前三段音乐用于验证体验；音色质感和情感表达仍需真人试听。没有假装完成第三方曲库接入或授权。
+支持真实音频导入，未接入 QQ 音乐等商业平台的在线搜索或全曲库。公开演示应使用具有相应用途授权的音频。导入后尚未寄出的原曲在刷新后需要重新选择，文字草稿保留；已寄出的音频和卡片则可跨设备读取。整曲文件不写入浏览器持久存储。手机系统对文件选择、格式解码及用户手势播放的支持仍需真机验证。
 
 ## 运行环境参考
 
