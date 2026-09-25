@@ -49,3 +49,27 @@ html{background:#111827}body{min-height:100vh;background:radial-gradient(ellipse
 @media(max-width:780px){.site-header{height:76px}.studio-main{padding:24px 4% 48px}.page-heading{margin-bottom:22px}.page-heading h1{font-size:2.2rem}.studio-grid{grid-template-columns:minmax(0,1fr);max-width:580px;gap:31px}.editor{padding:22px 19px;border-radius:17px}.preview-column{padding:0 8px}.postcard-photo{height:285px}.page-heading .heading-detail{display:none}.quiet-link{padding:8px 11px}}
 @media(max-width:420px){.site-header{padding:0 4%}.brand{font-size:.95rem}.brand-mark{width:35px;height:35px}.quiet-link{font-size:.75rem;padding:8px}.studio-main{padding-left:3%;padding-right:3%}.page-heading{padding:0 2%}.page-heading h1{font-size:1.94rem}.editor{padding:19px 14px}.step-tabs [data-slot=tabs-trigger]{font-size:.78rem;gap:4px}.step-tabs [data-slot=tabs-trigger] span{font-size:.8rem}.music-sources{padding:13px}.music-console{padding:17px}.postcard-photo{height:245px}.postcard{border-width:7px}.postcard-paper{padding:18px 14px 10px}.receiver-main{padding:0 14px}.reaction-options>label{font-size:.72rem}}
 @media(prefers-reduced-motion:reduce){.postcard,.postcard:hover,.primary-button:hover,.round-play:hover{transition:none;transform:none}}
+
+/* Easier reading and preview access on narrow screens. */
+.mobile-preview-action{display:none}
+.mood-filters button,.capture-button,.import-button,.theme-options>label,.reaction-options>label{min-height:44px}
+.track-copy small,.music-sources small,.step-bottom>p,.privacy-note,.postcard-song small{font-size:.8125rem}
+.time-row,.time-row b{font-size:.875rem}
+@media(max-width:780px){
+  .studio-main{padding-bottom:92px}
+  .mobile-preview-action{display:inline-flex;position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:30;align-items:center;gap:6px;min-height:48px;padding:11px 13px;border:1px solid #ffd3ab;background:#f5ae7f;color:#251c27;border-radius:100px;box-shadow:0 12px 32px #050b1db3;font-size:.875rem;font-weight:650}
+  .mobile-preview-action:hover{background:#ffd0a7;transform:translateY(-2px)}
+  .step-tabs [data-slot=tabs-trigger]{font-size:.875rem;gap:5px}
+  .step-tabs [data-slot=tabs-trigger] span{font-size:.75rem}
+  .track-choice{min-height:76px}
+  .clip-actions .plain-button{min-height:44px}
+  .preview-column{scroll-margin-top:18px}
+}
+@media(max-width:420px){
+  .step-tabs [data-slot=tabs-trigger]{font-size:.875rem;gap:3px;letter-spacing:-.025em}
+  .step-tabs [data-slot=tabs-trigger] span{font-size:.75rem}
+  .track-copy small{font-size:.8125rem}
+  .reaction-options>label{font-size:.8125rem}
+  .time-row{gap:4px 10px}
+}
+@media(prefers-reduced-motion:reduce){.mobile-preview-action:hover{transform:none}}

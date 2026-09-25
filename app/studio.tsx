@@ -1,6 +1,6 @@
 'use client';
 import {useEffect,useRef,useState,type CSSProperties} from 'react';
-import {ArrowLeft,ArrowRight,Check,CheckCheck,Copy,Heart,Headphones,Mail,Music2,Pause,Play,Send,Sparkles,Volume2,Loader2,ExternalLink,RefreshCw,Upload} from 'lucide-react';
+import {ArrowLeft,ArrowRight,Check,CheckCheck,Copy,Eye,Heart,Headphones,Mail,Music2,Pause,Play,Send,Sparkles,Volume2,Loader2,ExternalLink,RefreshCw,Upload} from 'lucide-react';
 import {Tabs,TabsList,TabsTrigger,TabsContent} from '@/components/ui/tabs';
 import {Slider} from '@/components/ui/slider';
 import {Input} from '@/components/ui/input';
@@ -27,6 +27,7 @@ export default function MomentStudio(){
   const [imported,setImported]=useState<(AudioMeta&{recommended:number})|null>(null);
   const [permission,setPermission]=useState(false);
   const [needsImport,setNeedsImport]=useState(false);
+  const [showPreviewShortcut,setShowPreviewShortcut]=useState(true);
   const localAudio=useRef<string|null>(null);
   const active=trackInfo(draft),duration=active.duration;
   const isLocal=draft.track.startsWith('local:');
@@ -44,6 +45,7 @@ export default function MomentStudio(){
     return()=>{audioJob.current++;engine.close();if(localAudio.current)forgetAudio(localAudio.current);document.removeEventListener('visibilitychange',hidden);player.current=null;};
   },[]);
   useEffect(()=>{if(ready)try{localStorage.setItem(DRAFT_KEY,JSON.stringify(draft));}catch{}},[draft,ready]);
+  useEffect(()=>{const update=()=>{const card=document.querySelector('.preview-column')?.getBoundingClientRect();setShowPreviewShortcut(!card||card.top>window.innerHeight-80||card.bottom<0);};update();window.addEventListener('scroll',update,{passive:true});window.addEventListener('resize',update);return()=>{window.removeEventListener('scroll',update);window.removeEventListener('resize',update);};},[]);
   useEffect(()=>{let live=true;player.current?.prepare(draft.track).then(result=>{if(live)setWave(result.wave);}).catch(()=>{if(live)setNotice('音乐暂时没能准备好，点击播放可以重试。');});return()=>{live=false;};},[draft.track,ready]);
   function edit(patch:Partial<CardInput>){setDraft(d=>({...d,...patch}));setSaved(null);setUrl('');setReplies([]);setCopied(false);saveKey.current=null;setNotice('');try{localStorage.removeItem(LAST_KEY);}catch{}}
   async function runSound(task:()=>Promise<void>){const job=++audioJob.current;setAudioBusy(true);setNotice('');try{await task();}catch(e){setNotice(e instanceof Error?e.message:'声音未能启动，请再试一次。');}finally{if(job===audioJob.current)setAudioBusy(false);}}
@@ -82,6 +84,7 @@ export default function MomentStudio(){
   const previewCard:Card={...draft,id:'preview',message:draft.message||SAMPLE_CARD.message,toName:draft.toName||'想到的你',fromName:draft.fromName||'一个想你的人',createdAt:0};
   return <div className="app-shell">
     <header className="site-header"><Brand/><span className="header-caption">把没说出口的话，藏进一小段音乐。</span><a className="quiet-link" href="/sample"><Headphones size={17}/>体验一封来信<ArrowRight size={14}/></a></header>
+    {showPreviewShortcut&&<button type="button" className="mobile-preview-action" aria-label="预览明信片" onClick={()=>{player.current?.pause();setPreview(true);}}><Eye size={17}/>预览</button>}
     <main className="studio-main">
       <div className="page-heading"><div><p className="eyebrow"><span/>一封可以听见的明信片</p><h1>刚好听到这里，<br className="mobile-br"/>就想起了你<span className="heading-comma">。</span></h1><p className="heading-sub">留下一段音乐，送给此刻脑海里的那个人。</p></div><div className="heading-detail"><Heart size={20} strokeWidth={1.3}/><span>不用会音乐<br/>有想念就好</span></div></div>
       <div className="studio-grid" inert={!ready} aria-busy={!ready}>
