@@ -73,3 +73,13 @@ html{background:#111827}body{min-height:100vh;background:radial-gradient(ellipse
   .time-row{gap:4px 10px}
 }
 @media(prefers-reduced-motion:reduce){.mobile-preview-action:hover{transform:none}}
+
+/* A quiet night-sky backdrop ties the listening desk to the warm postcard. */
+html{background:#0b1422}
+.app-shell{overflow-x:clip}
+body{background:radial-gradient(ellipse 54% 34% at 91% 23%,#c6726840,transparent 76%),radial-gradient(ellipse 67% 36% at 53% -10%,#7272aa45,transparent 78%),radial-gradient(ellipse 62% 49% at -13% 84%,#28718a42,transparent 77%),linear-gradient(160deg,#172036 0%,#0d1625 48%,#101a2a 100%)}
+.app-shell:before{opacity:.34;background-image:radial-gradient(circle,#ffddc17d .7px,transparent 1.2px),radial-gradient(circle,#b7d8e06c .7px,transparent 1.2px);background-size:141px 137px,197px 181px;background-position:26px 21px,91px 83px;mask-image:linear-gradient(to bottom,#000 0%,#0008 67%,transparent 100%)}
+.app-shell:after{content:'';position:absolute;z-index:-1;pointer-events:none;width:min(55vw,760px);aspect-ratio:1;right:-5%;top:145px;border-radius:50%;opacity:.7;transform:rotate(-16deg);background:repeating-radial-gradient(circle at center,transparent 0 25px,#ffcaad14 26px 27px,transparent 28px 52px);mask-image:radial-gradient(circle,transparent 0 17%,#000 30% 68%,transparent 78%)}
+.site-header{background:linear-gradient(180deg,#111b2c54,transparent)}
+.preview-column:before{content:'';position:absolute;z-index:-1;pointer-events:none;inset:78px -21px 120px;background:radial-gradient(ellipse at 63% 35%,#ee9c7652,transparent 68%);filter:blur(24px)}
+@media(max-width:780px){body{background:radial-gradient(ellipse 120% 460px at 86% -8%,#8d617465,transparent 78%),radial-gradient(ellipse 115% 580px at -27% 83%,#23637b5c,transparent 77%),linear-gradient(170deg,#172137,#0d1728 57%,#111b2b)}.app-shell:after{width:90vw;right:-35%;top:370px;opacity:.35}.preview-column:before{inset:50px -12px 130px;opacity:.7}}
