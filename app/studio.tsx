@@ -7,16 +7,17 @@ import {Input} from '@/components/ui/input';
 import {Textarea} from '@/components/ui/textarea';
 import {RadioGroup,RadioGroupItem} from '@/components/ui/radio-group';
 import {Dialog,DialogContent,DialogTitle,DialogDescription} from '@/components/ui/dialog';
-import {TRACKS,THEMES,DEFAULT_DRAFT,SAMPLE_CARD,clock,validateCard,trackInfo,originalTime,type AudioMeta,type CardInput,type Card,type TrackId,type Reply} from '@/lib/moment';
+import {TRACKS,THEMES,DEFAULT_DRAFT,SAMPLE_CARD,clock,validateCard,trackInfo,originalTime,type AudioMeta,type CardInput,type Card,type TrackId,type Reply,type Conversation} from '@/lib/moment';
 import {SoundPlayer,importAudio,exportClip,forgetAudio} from '@/lib/sound';
 import {useDraftTool} from '@/lib/use-webmcp';
 import {Postcard,ListenCard} from './visuals';
-type ApiResult={card:Card;replies:Reply[];error?:string};
+import {ConversationTrail} from './conversation-trail';
+type ApiResult={card:Card;replies:Reply[];conversation?:Conversation;error?:string};
 
 const DRAFT_KEY='this-moment-draft-v1',LAST_KEY='this-moment-last-card';
 export function Brand(){return <a className="brand" href="/" aria-label="这一秒想到你首页"><span className="brand-mark"><Mail size={22}/><Music2 className="brand-note" size={12}/></span><span>这一秒，想到你<small>A LITTLE MUSIC, A LOT OF YOU.</small></span></a>;}
 
-export default function MomentStudio(){
+export default function MomentStudio({replyTo}:{replyTo?:string}){
   const [draft,setDraft]=useState<CardInput>({...DEFAULT_DRAFT});const [step,setStep]=useState('music');
   const [sound,setSound]=useState({playing:false,position:0,duration:48,track:null as TrackId|null,wave:[] as number[]});
   const [wave,setWave]=useState<number[]>([]);const [volume,setVolume]=useState(65);const [audioBusy,setAudioBusy]=useState(false);
@@ -29,6 +30,8 @@ export default function MomentStudio(){
   const [needsImport,setNeedsImport]=useState(false);
   const [showPreviewShortcut,setShowPreviewShortcut]=useState(true);
   const localAudio=useRef<string|null>(null);
+  const [replyContext,setReplyContext]=useState<Card|null>(null),[contextError,setContextError]=useState(''),[conversation,setConversation]=useState<Conversation|null>(null);
+  const draftKey=replyTo?`${DRAFT_KEY}:reply:${replyTo}`:DRAFT_KEY,lastKey=replyTo?`${LAST_KEY}:reply:${replyTo}`:LAST_KEY;
   const active=trackInfo(draft),duration=active.duration;
   const isLocal=draft.track.startsWith('local:');
   const shownTracks=TRACKS.filter(t=>mood==='全部'||t.mood===mood);
@@ -36,18 +39,26 @@ export default function MomentStudio(){
   useDraftTool({step,...draft,savedId:saved?.id??null});
   useEffect(()=>{
     const engine=new SoundPlayer(setSound);player.current=engine;
-    try{const stored=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null');if(stored){if(stored.track?.startsWith('local:')){setNeedsImport(true);stored.track='sunset';stored.audio=undefined;stored.start=12;stored.end=24;setNotice('留言草稿还在，请重新导入上次选择的音乐文件。');}const valid=validateCard({...stored,message:stored.message?.trim()||'草稿'});setDraft({...valid,message:typeof stored.message==='string'?stored.message:'',toName:stored.toName,fromName:stored.fromName});}}catch{}
-    let last:string|null=null;try{last=localStorage.getItem(LAST_KEY);}catch{}
-    if(last&&/^[0-9a-f-]{36}$/.test(last))fetch(`/api/cards/${last}`).then(async r=>{if(!r.ok)return;const data=await r.json() as ApiResult;setSaved(data.card);setDraft(data.card);setReplies(data.replies);setUrl(`${location.origin}/card/${last}`);setStep('send');}).catch(()=>{});
-    setReady(true);
+    const abort=new AbortController();
+    async function restore(){
+      let initial={...DEFAULT_DRAFT};
+      if(replyTo){try{const response=await fetch(`/api/cards/${replyTo}`,{signal:abort.signal});const result=await response.json() as ApiResult;if(!response.ok)throw new Error(result.error||'原信暂时无法打开。');if(abort.signal.aborted)return;setReplyContext(result.card);initial={...initial,toName:result.card.fromName,fromName:result.card.toName,theme:result.card.theme};}catch(error){if(abort.signal.aborted)return;setContextError(error instanceof Error?error.message:'原信暂时无法打开，请重试。');}}
+      if(abort.signal.aborted)return;
+      try{const stored=JSON.parse(localStorage.getItem(draftKey)||'null');if(stored){if(stored.track?.startsWith('local:')||stored.needsImport){setNeedsImport(true);stored.track='sunset';stored.audio=undefined;stored.start=12;stored.end=24;setNotice('留言草稿还在，请重新导入上次选择的音乐文件。');}const valid=validateCard({...stored,message:stored.message?.trim()||'草稿'});initial={...valid,message:typeof stored.message==='string'?stored.message:'',toName:stored.toName,fromName:stored.fromName};}}catch{}
+      setDraft(initial);
+      let last:string|null=null;try{last=localStorage.getItem(lastKey);}catch{}
+      if(last&&/^[0-9a-f-]{36}$/.test(last)){try{const response=await fetch(`/api/cards/${last}`,{signal:abort.signal});if(response.ok){const result=await response.json() as ApiResult;if(!abort.signal.aborted&&(result.card.parentCardId||undefined)===replyTo){setSaved(result.card);setDraft(result.card);setReplies(result.replies);setConversation(result.conversation||null);setUrl(`${location.origin}/card/${last}`);setStep('send');setNeedsImport(false);}}}catch{}}
+      if(!abort.signal.aborted)setReady(true);
+    }
+    void restore();
     const hidden=()=>{if(document.hidden){engine.pause();audioJob.current++;setAudioBusy(false);}};
     document.addEventListener('visibilitychange',hidden);
-    return()=>{audioJob.current++;engine.close();if(localAudio.current)forgetAudio(localAudio.current);document.removeEventListener('visibilitychange',hidden);player.current=null;};
-  },[]);
-  useEffect(()=>{if(ready)try{localStorage.setItem(DRAFT_KEY,JSON.stringify(draft));}catch{}},[draft,ready]);
+    return()=>{abort.abort();audioJob.current++;engine.close();if(localAudio.current)forgetAudio(localAudio.current);document.removeEventListener('visibilitychange',hidden);player.current=null;};
+  },[replyTo,draftKey,lastKey]);
+  useEffect(()=>{if(ready)try{localStorage.setItem(draftKey,JSON.stringify({...draft,needsImport}));}catch{}},[draft,ready,draftKey,needsImport]);
   useEffect(()=>{const update=()=>{const card=document.querySelector('.preview-column')?.getBoundingClientRect();setShowPreviewShortcut(!card||card.top>window.innerHeight-80||card.bottom<0);};update();window.addEventListener('scroll',update,{passive:true});window.addEventListener('resize',update);return()=>{window.removeEventListener('scroll',update);window.removeEventListener('resize',update);};},[]);
   useEffect(()=>{let live=true;player.current?.prepare(draft.track).then(result=>{if(live)setWave(result.wave);}).catch(()=>{if(live)setNotice('音乐暂时没能准备好，点击播放可以重试。');});return()=>{live=false;};},[draft.track,ready]);
-  function edit(patch:Partial<CardInput>){setDraft(d=>({...d,...patch}));setSaved(null);setUrl('');setReplies([]);setCopied(false);saveKey.current=null;setNotice('');try{localStorage.removeItem(LAST_KEY);}catch{}}
+  function edit(patch:Partial<CardInput>){setDraft(d=>({...d,...patch}));setSaved(null);setUrl('');setReplies([]);setConversation(null);setCopied(false);saveKey.current=null;setNotice('');try{localStorage.removeItem(lastKey);}catch{}}
   async function runSound(task:()=>Promise<void>){const job=++audioJob.current;setAudioBusy(true);setNotice('');try{await task();}catch(e){setNotice(e instanceof Error?e.message:'声音未能启动，请再试一次。');}finally{if(job===audioJob.current)setAudioBusy(false);}}
   async function chooseTrack(id:TrackId){setNeedsImport(false);player.current?.stop();edit({track:id,audio:undefined,start:12,end:24});await runSound(()=>player.current!.play(id));}
   async function toggleFull(){if(sound.playing){player.current?.pause();return;}await runSound(()=>player.current!.play(draft.track,sound.track===draft.track&&sound.position<duration-.2?sound.position:0,duration));}
@@ -64,6 +75,7 @@ export default function MomentStudio(){
   function changeRange(values:number[]){let [start,end]=values;if(end-start>20){if(start!==draft.start)end=start+20;else start=end-20;}player.current?.pause();edit({start,end});}
   function go(next:string){setNotice('');if(next==='send'&&needsImport){setNotice('请重新导入音乐，或明确选择一首试听集里的音乐。');setStep('music');return;}if(next==='send'){try{validateCard(draft);}catch(e){setNotice((e as Error).message);setStep('note');return;}}setStep(next);}
   async function create(){
+    if(replyTo&&!replyContext){setNotice('原信还没有打开，请先重新加载原信。');return;}
     if(needsImport){setNotice('请重新导入音乐，或明确选择一首试听集里的音乐。');setStep('music');return;}
     let card;try{card=validateCard(draft);}catch(e){setNotice((e as Error).message);setStep('note');return;}
     if(isLocal&&!permission){setNotice('请先确认导入的音频可以用于这次分享。');setStep('music');return;}
@@ -76,17 +88,19 @@ export default function MomentStudio(){
         const result=await uploaded.json() as {audio:AudioMeta;error?:string};if(!uploaded.ok)throw new Error(result.error||'音乐保存失败，请重试。');
         card={...card,track:result.audio.id,audio:result.audio,start:0,end:draft.end-draft.start};
       }
-      const response=await fetch('/api/cards',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({card,requestKey:saveKey.current})});const data=await response.json() as ApiResult;if(!response.ok)throw new Error(data.error||'暂时未能保存，请重试。');setSaved(data.card);setDraft(data.card);setUrl(`${location.origin}/card/${data.card.id}`);setReplies([]);try{localStorage.setItem(LAST_KEY,data.card.id);}catch{}setNotice('明信片已保存，把链接发给你想到的人吧。');}
+      const response=await fetch('/api/cards',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({card,requestKey:saveKey.current,parentCardId:replyTo||null})});const data=await response.json() as ApiResult;if(!response.ok)throw new Error(data.error||'暂时未能保存，请重试。');setSaved(data.card);setDraft(data.card);setUrl(`${location.origin}/card/${data.card.id}`);setReplies([]);setConversation(data.conversation||null);try{localStorage.setItem(lastKey,data.card.id);}catch{}setNotice(replyTo?'音乐回信已保存在你们的往来里，把链接发给 TA 吧。':'明信片已保存，把链接发给你想到的人吧。');}
     catch(e){setNotice(e instanceof TypeError?'连接暂时中断，留言还在，请重试。':e instanceof Error?e.message:'连接暂时中断，留言还在，请重试。');}finally{setSaving(false);}
   }
+  function startNew(){player.current?.stop();edit({...DEFAULT_DRAFT,audio:undefined,...(replyContext?{toName:replyContext.fromName,fromName:replyContext.toName,theme:replyContext.theme}:{})});setNeedsImport(false);setPermission(false);setStep('music');}
   async function copy(){try{await navigator.clipboard.writeText(url);setCopied(true);setNotice('链接已复制，你可以粘贴给对方。');}catch{const input=document.querySelector<HTMLInputElement>('#share-url');input?.focus();input?.select();setNotice('请长按链接，或使用 Ctrl+C 复制。');}}
-  async function refresh(){if(!saved)return;setRefreshing(true);try{const r=await fetch(`/api/cards/${saved.id}`);const data=await r.json() as ApiResult;if(!r.ok)throw new Error(data.error);setReplies(data.replies);setNotice(data.replies.length?'回应已更新。':'暂时还没有回应，给这份心意一点时间。');}catch{setNotice('暂时无法刷新回应，请稍后再试。');}finally{setRefreshing(false);}}
+  async function refresh(){if(!saved)return;setRefreshing(true);try{const r=await fetch(`/api/cards/${saved.id}`);const data=await r.json() as ApiResult;if(!r.ok)throw new Error(data.error);setReplies(data.replies);setConversation(data.conversation||null);setNotice(data.replies.length||(data.conversation?.cards.length||0)>1?'音乐往来和回应已更新。':'暂时还没有回信，给这份心意一点时间。');}catch{setNotice('暂时无法刷新回应，请稍后再试。');}finally{setRefreshing(false);}}
   const previewCard:Card={...draft,id:'preview',message:draft.message||SAMPLE_CARD.message,toName:draft.toName||'想到的你',fromName:draft.fromName||'一个想你的人',createdAt:0};
   return <div className="app-shell">
     <header className="site-header"><Brand/><span className="header-caption">把没说出口的话，藏进一小段音乐。</span><a className="quiet-link" href="/sample"><Headphones size={17}/>体验一封来信<ArrowRight size={14}/></a></header>
     {showPreviewShortcut&&<button type="button" className="mobile-preview-action" aria-label="预览明信片" onClick={()=>{player.current?.pause();setPreview(true);}}><Eye size={17}/>预览</button>}
     <main className="studio-main">
-      <div className="page-heading"><div><p className="eyebrow"><span/>一封可以听见的明信片</p><h1>刚好听到这里，<br className="mobile-br"/>就想起了你<span className="heading-comma">。</span></h1><p className="heading-sub">留下一段音乐，送给此刻脑海里的那个人。</p></div><div className="heading-detail"><Heart size={20} strokeWidth={1.3}/><span>不用会音乐<br/>有想念就好</span></div></div>
+      {replyTo&&<div className="reply-context" role="region" aria-label="正在回复的音乐明信片"><span className="reply-context-icon"><Music2 size={23}/></span><div>{replyContext?<><span className="eyebrow">MUSIC LETTER · REPLY</span><h2>给 {replyContext.fromName}，回一段音乐</h2><p>TA 寄来《{trackInfo(replyContext).title}》：“{replyContext.message}”</p><a className="plain-button" href={`/card/${replyTo}`}>打开原信<ArrowRight size={13}/></a></>:contextError?<><h2>原信暂时没有打开</h2><p role="alert">{contextError}</p><button className="plain-button" onClick={()=>location.reload()}><RefreshCw size={14}/>重新加载原信</button></>:<p><Loader2 className="spin" size={16}/>正在打开你要回复的那封信…</p>}</div></div>}
+      <div className="page-heading"><div><p className="eyebrow"><span/>一封可以听见的明信片</p><h1>刚好听到这里，<br className="mobile-br"/>就想起了你<span className="heading-comma">。</span></h1><p className="heading-sub">{replyTo?'用你喜欢的一段音乐，接住 TA 的心意。':'留下一段音乐，送给此刻脑海里的那个人。'}</p></div><div className="heading-detail"><Heart size={20} strokeWidth={1.3}/><span>不用会音乐<br/>有想念就好</span></div></div>
       <div className="studio-grid" inert={!ready} aria-busy={!ready}>
         <section className="editor" aria-label="制作音乐明信片">
           <Tabs value={step} onValueChange={go} className="editor-tabs">
@@ -119,12 +133,13 @@ export default function MomentStudio(){
               <div className="step-bottom"><button className="plain-button" onClick={()=>go('music')}><ArrowLeft size={15}/>回去听听</button><button className="primary-button" onClick={()=>go('send')}>写好了，准备寄出<ArrowRight size={16}/></button></div>
             </TabsContent>
             <TabsContent value="send" className="editor-panel send-panel">
-              <div className="section-heading"><h2>{saved?'这一秒，已经装进信里。':'心意准备好了。'}</h2><Send size={19}/></div><p className="section-description">{saved?'复制链接，发给你想到的那个人。':'对方打开时，会先听见你留下的这段音乐。'}</p>
+              <div className="section-heading"><h2>{saved?(replyTo?'你的音乐回信，已经留下。':'这一秒，已经装进信里。'):'心意准备好了。'}</h2><Send size={19}/></div><p className="section-description">{saved?(replyTo?'回信已加入这段音乐往来。复制链接，让 TA 听见。':'复制链接，发给你想到的那个人。'):'对方打开时，会先听见你留下的这段音乐。'}</p>
               <div className="send-summary"><Music2 size={21}/><div><strong>{active.title}</strong><span>{clock(originalTime(draft,draft.start))}—{clock(originalTime(draft,draft.end))} · {draft.end-draft.start} 秒的心意</span></div><button className="plain-button" aria-label="试听寄出的片段" onClick={playClip}><Play size={17}/></button></div>
               <div className="delivery-note"><Mail size={27} strokeWidth={1.3}/><p>给 <strong>{draft.toName||'想到的你'}</strong><br/><span>{saved?'一张可以反复打开的音乐明信片。':'按住打开，音乐响起，心里话慢慢出现。'}</span></p></div>
-              {!saved?<><button className="primary-button send-create" disabled={saving} onClick={create}>{saving?<Loader2 className="spin" size={17}/>:<Send size={17}/>} {saving?'正在装进信里…':'生成这张明信片'}</button><p className="privacy-note">卡片会保存。持有链接的人可以查看留言与回应。</p><button className="plain-button edit-again" disabled={saving} onClick={()=>go('note')}><ArrowLeft size={15}/>再改一下心里话</button></>:<><label className="share-label" htmlFor="share-url">明信片链接</label><div className="share-field"><Input id="share-url" value={url} readOnly onFocus={e=>e.target.select()}/><button className="copy-button" onClick={copy}>{copied?<CheckCheck size={17}/>:<Copy size={17}/>} {copied?'已复制':'复制'}</button></div><a className="recipient-link" href={url} target="_blank" rel="noreferrer">打开收信页面<ExternalLink size={15}/></a><div className="responses"><div className="response-heading"><h3>收到的回应</h3><button className="plain-button" disabled={refreshing} onClick={refresh}><RefreshCw size={14} className={refreshing?'spin':''}/>刷新</button></div>{replies.length?replies.map(r=><div className="mini-reply" key={r.id}><strong>{r.name} · {r.reaction}</strong>{r.message&&<p>{r.message}</p>}</div>):<p className="empty-replies">回应会留在这里。不着急，心意正在路上。</p>}</div><p className="privacy-note">分享前请确认站点允许对方访问。链接内的留言与回应仅向有访问权限的人展示。</p></>}
+              {!saved?<><button className="primary-button send-create" disabled={saving} onClick={create}>{saving?<Loader2 className="spin" size={17}/>:<Send size={17}/>} {saving?'正在装进信里…':'生成这张明信片'}</button><p className="privacy-note">明信片和音乐回信会保存。持有其中任一链接、且有站点访问权限的人，可查看整段往来。</p><button className="plain-button edit-again" disabled={saving} onClick={()=>go('note')}><ArrowLeft size={15}/>再改一下心里话</button></>:<><label className="share-label" htmlFor="share-url">明信片链接</label><div className="share-field"><Input id="share-url" value={url} readOnly onFocus={e=>e.target.select()}/><button className="copy-button" onClick={copy}>{copied?<CheckCheck size={17}/>:<Copy size={17}/>} {copied?'已复制':'复制'}</button></div><a className="recipient-link" href={url} target="_blank" rel="noreferrer">打开收信页面<ExternalLink size={15}/></a><div className="responses"><div className="response-heading"><h3>收到的回应</h3><button className="plain-button" disabled={refreshing} onClick={refresh}><RefreshCw size={14} className={refreshing?'spin':''}/>刷新</button></div>{replies.length?replies.map(r=><div className="mini-reply" key={r.id}><strong>{r.name} · {r.reaction}</strong>{r.message&&<p>{r.message}</p>}</div>):<p className="empty-replies">回应会留在这里。不着急，心意正在路上。</p>}</div><p className="privacy-note">分享前请确认站点允许对方访问。链接内的留言与回应仅向有访问权限的人展示。</p></>}
             </TabsContent>
           </Tabs>
+          {step==='send'&&saved&&<><button className="plain-button start-new" onClick={startNew}><Music2 size={15}/>{replyTo?'再回一封音乐信':'再写一张明信片'}</button>{conversation&&<ConversationTrail key={`${conversation.rootId}-${conversation.cards.at(-1)?.id}-${conversation.olderCursor}`} conversation={conversation} currentId={saved.id} onRefresh={refresh} refreshing={refreshing}/>}</>}
           {notice&&<p className="notice" role="status">{notice}</p>}
           <div className="editor-foot"><span><Headphones size={14}/>戴上耳机，让这一刻更近一点</span><label><Volume2 size={15}/><span className="sr-only">音量</span><Slider className="volume-slider" aria-label="音量" value={[volume]} min={0} max={100} step={1} onValueChange={([value])=>{setVolume(value);player.current?.setVolume(value/100);}}/></label></div>
         </section>

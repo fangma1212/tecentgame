@@ -7,9 +7,12 @@
 1. 选择三首原创试听曲之一，或导入自己有权分享的本地 MP3 / WAV / M4A / OGG 文件（8 秒至 5 分钟、20 MB 内；以浏览器解码能力为准）。
 2. 试听并选取 8—20 秒。导入歌曲时，页面会按平均音频能量给出约 12 秒的推荐起点；用户仍可拖动范围或在播放时留下当前片段。推荐不等于副歌、歌词或情绪识别。
 3. 写留言、收信人称呼和署名，选择卡片主题，实时预览。
-4. 生成独立链接。收信人打开、听歌并回应；寄信人可以刷新查看回应。
+4. 生成独立链接。收信人打开、听歌，可以留一句话，也可以用另一段音乐回信。
+5. 回信时自动对调称呼，原信与回信保存在同一段音乐往来中。双方可以继续回复、逐封打开听，刷新查看新回信；更早的记录可以分页加载。
 
-整首导入歌曲只在当前页面解码。寄出时仅把选中的片段转成 WAV 存入 R2；卡片、歌曲元数据和回应存入 D1。未寄出的文字草稿保存在当前浏览器，刷新后需重新导入整首歌曲。项目未接入商业音乐平台曲库，也不会代替用户发送消息。
+整首导入歌曲只在当前页面解码。寄出时仅把选中的片段转成 WAV 存入 R2；卡片、音乐往来、歌曲元数据和文字回应存入 D1。未寄出的草稿按原信分别保存在当前浏览器，刷新后需重新导入整首歌曲；已保存的短片段不需要重新导入。项目未接入商业音乐平台曲库，也不会代替用户发送消息。
+
+音乐往来按链接访问，未提供参与者身份认证。持有同一段往来中任一明信片链接、且有站点访问权限的人可以读取整段往来；不要把它当作仅双方可读的私人聊天。
 
 ## 本地运行
 
@@ -25,6 +28,7 @@ npm run build
 ```sh
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_quick_iron_fist.sql
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0001_neat_speed_demon.sql
+node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0002_music_replies.sql
 ```
 
 已执行过迁移的数据库不要重复执行。启动开发服务：
@@ -42,5 +46,6 @@ npm run dev
 - `app/api/`、`db/`、`drizzle/`：卡片、回应和音频的存储接口及结构。
 - `public/coastal-dusk.png`：明信片封面图；来源见 [ASSETS.md](ASSETS.md)。
 - [QA.md](QA.md)：已验证流程和提交比赛前的待办。
+- [DEMO.md](DEMO.md)：三分钟演示顺序与真实听众试用记录方法。
 
-仓库仅包含源码与静态素材，不包含已生成的明信片、回应或用户导入的歌曲。线上站点目前为私有预览，给队友或评委访问前需配置访问范围。
+仓库仅包含源码与静态素材，不包含已生成的明信片、回应或用户导入的歌曲。站点访问范围以 Sites 中的实际设置为准；2026-10-05 更新前检查为公开，更新保留了这一范围。
